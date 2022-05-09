@@ -7,5 +7,6 @@ So far, the code is able to convert initial .mp3 to wav to MIDI file using WAON.
 Next is to train the data and see the results and work from there.
 
 References:
-https://github.com/kotritrona/osumapper
+https://github.com/kotritrona/osumapper 
+
 http://kichiki.github.io/waon/
