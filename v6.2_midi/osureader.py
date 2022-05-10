@@ -295,42 +295,41 @@ def get_wav_data_at(ms, sig, samplerate, fft_size=2048, freq_low=0, freq_high=-1
 
     return La, Lg;
 
-def read_wav_data(timestamps, wavfile, snapint=[-0.3, -0.2, -0.1, 0, 0.1, 0.2, 0.3], fft_size = 1024):
+def read_wav_data(timestamps, wavfile, midifile = "wavfile.midi", snapint=[-0.3, -0.2, -0.1, 0, 0.1, 0.2, 0.3], fft_size = 1024):
 
-    #for short temp. period using hardcoded name
-    #in future midi file gen. by waon (waon -i some.wav -o some.midi)
-    pm = pretty_midi.PrettyMIDI('wavfile.midi') #reading midi file
+    #midi file gen. by waon (waon -i some.wav -o some.midi)
+    pm = pretty_midi.PrettyMIDI(midifile) #reading midi file
     
-    start_pitch = 44 #lower note
-    end_pitch = 76 #higher note
+    start_pitch_low = 39 #lower note
+    end_pitch_low = 71 #actual higher note 70
+    start_pitch_high = 71 #lower note
+    end_pitch_high = 103 #actual higher note 102
     fs = 512 #sampling frequency for piano roll
     wav_fs = 44100 # default ffmpef file fs conversion
-    roll = pm.get_piano_roll(fs)[start_pitch:end_pitch] #get piano roll
-    roll = roll / np.max(np.max(np.abs(roll), axis=0)) #rescale values from 0 to 1 req. for NN
-    roll=np.swapaxes(roll,0,1) #reshape array
-    
+    snapint_length =int((0.1*fs))
+    roll_low = pm.get_piano_roll(fs)[start_pitch_low:end_pitch_low] #get piano roll
+    roll_high = pm.get_piano_roll(fs)[start_pitch_high:end_pitch_high] #get piano roll
+    roll_low = (roll_low > 0).astype(np.float16) #change all velocities (note play volume to 1)
+    roll_high = (roll_high > 0).astype(np.float16) #change all velocities (note play volume to 1)
+    roll_low=np.swapaxes(roll_low,0,1) #reshape array
+    roll_high=np.swapaxes(roll_high,0,1) #reshape array
 
     data = list();
 
-
     # calc a length array
     tmpts = np.array(timestamps);
-    #not using for a while
-    timestamp_interval = tmpts[1:] - tmpts[:-1];
-    timestamp_interval = np.append(timestamp_interval, timestamp_interval[-1]);
     
-##------------------------------------------------------------------------------
     for sn in snapint:
         data_r = np.array([])
         for i in timestamps:
-            data_r1 = np.maximum.reduce(np.array([roll[j,:] for j in np.array([int((i+sn*fs)*fs//wav_fs-2),int((i+sn*fs)*fs//wav_fs-1),int((i+sn*fs)*fs//wav_fs),int((i+sn*fs)*fs//wav_fs+1),int((i+sn*fs)*fs//wav_fs+2)])]))
+            data_low = np.maximum.reduce(np.array([roll_low[int(i*fs/wav_fs+sn)+j,:] for j in range(-snapint_length,snapint_length+1)]))
+            data_high = np.maximum.reduce(np.array([roll_high[int(i*fs/wav_fs+sn)+j,:] for j in range(-snapint_length,snapint_length+1)]))
             if data_r.size == 0:
-                data_r = np.array([[data_r1,data_r1]])
+                data_r = np.array([[data_low,data_high]])
             else:
-                data_r = np.concatenate((data_r,np.array([[data_r1,data_r1]])),axis=0)
+                data_r = np.concatenate((data_r,np.array([[data_low,data_high]])),axis=0)
         data.append(data_r.tolist())
     
-##------------------------------------------------------------------------------
 
     sdata = np.array(data)
 
@@ -419,9 +418,6 @@ def read_and_save_osu_file_using_json_wavdata(path, json_path, filename = "saved
 def read_and_save_osu_tester_file(path, filename = "saved", json_name="mapthis.json", divisor=4):
     osu_dict, wav_file = read_osu_file(path, convert = True, json_name=json_name);
     sig, samplerate = soundfile.read(wav_file);
-    print("printing sig len")
-    print(len(sig))
-    print(len(sig[0]))
     file_len = (sig.shape[0] / samplerate * 1000 - 3000);
 
     timestamps, tick_lengths, slider_lengths = get_all_ticks_and_lengths_from_ts(osu_dict["timing"]["uts"], osu_dict["timing"]["ts"], file_len, divisor=divisor);
@@ -434,9 +430,6 @@ def read_and_save_osu_tester_file(path, filename = "saved", json_name="mapthis.j
     wav_data = read_wav_data(timestamps, wav_file, snapint=[-0.3, -0.2, -0.1, 0, 0.1, 0.2, 0.3], fft_size = 128);
     # in order to match first dimension
     wav_data = np.swapaxes(wav_data, 0, 1);
-    print("printing wav_data len")
-    print(len(wav_data))
-    print(len(wav_data[0]))
     np.savez_compressed(filename, ticks = ticks, timestamps = timestamps, wav = wav_data, extra = extra);
 
 def read_and_return_osu_file(path, divisor=4):
