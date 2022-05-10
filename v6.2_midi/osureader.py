@@ -304,7 +304,7 @@ def read_wav_data(timestamps, wavfile, snapint=[-0.3, -0.2, -0.1, 0, 0.1, 0.2, 0
     start_pitch = 44 #lower note
     end_pitch = 76 #higher note
     fs = 512 #sampling frequency for piano roll
-    
+    wav_fs = 44100 # default ffmpef file fs conversion
     roll = pm.get_piano_roll(fs)[start_pitch:end_pitch] #get piano roll
     roll = roll / np.max(np.max(np.abs(roll), axis=0)) #rescale values from 0 to 1 req. for NN
     roll=np.swapaxes(roll,0,1) #reshape array
@@ -323,7 +323,7 @@ def read_wav_data(timestamps, wavfile, snapint=[-0.3, -0.2, -0.1, 0, 0.1, 0.2, 0
     for sn in snapint:
         data_r = np.array([])
         for i in timestamps:
-            data_r1 = np.maximum.reduce(np.array([roll[j,:] for j in np.array([i//fs-2,i//fs-1,i//fs,i//fs+1,i//fs+2])]))
+            data_r1 = np.maximum.reduce(np.array([roll[j,:] for j in np.array([int((i+sn*fs)*fs//wav_fs-2),int((i+sn*fs)*fs//wav_fs-1),int((i+sn*fs)*fs//wav_fs),int((i+sn*fs)*fs//wav_fs+1),int((i+sn*fs)*fs//wav_fs+2)])]))
             if data_r.size == 0:
                 data_r = np.array([[data_r1,data_r1]])
             else:
